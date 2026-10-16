@@ -12,6 +12,15 @@ import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
+ * Created by IntelliJ IDEA.
+ * Project : spring-boot-multi-tenant-mongo
+ * User: hendisantika
+ * Email: hendisantika@gmail.com
+ * Telegram : @hendisantika34
+ * Date: 16/10/26
+ * Time: 13.21
+ */
+/**
  * Configuration class for multi-tenant MongoDB connections.
  */
 @Configuration
