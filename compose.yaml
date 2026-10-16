@@ -1,6 +1,6 @@
 services:
   mongodb:
-    image: 'mongo:8.0.10-noble'
+    image: 'mongo:9.0.2-noble'
     environment:
       - 'MONGO_INITDB_DATABASE=tenant_db'
       - 'MONGO_INITDB_ROOT_USERNAME=yu71'
