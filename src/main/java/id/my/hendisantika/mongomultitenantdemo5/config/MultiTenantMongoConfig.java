@@ -1,15 +1,14 @@
 package id.my.hendisantika.mongomultitenantdemo5.config;
 
 import com.mongodb.client.MongoClient;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.mongodb.client.MongoDatabase;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.mongodb.MongoDatabaseFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
-import org.springframework.web.context.WebApplicationContext;
 
 /**
  * Created by IntelliJ IDEA.
@@ -26,25 +25,28 @@ import org.springframework.web.context.WebApplicationContext;
 @Configuration
 public class MultiTenantMongoConfig {
 
-    @Autowired
-    private MongoClient mongoClient;
-
-    /**
-     * Creates a request-scoped MongoTemplate that uses the tenant ID from TenantContext
-     * to determine which database to connect to.
-     *
-     * @return a tenant-aware MongoTemplate
-     */
     @Value("${multitenancy.default-tenant:default}")
     private String defaultTenant;
 
+    /**
+     * Creates a MongoTemplate whose database factory resolves the database from TenantContext
+     * on every call, so each operation is routed to the current tenant's database.
+     * <p>
+     * The factory is deliberately not exposed as a bean: Spring Boot only auto-configures
+     * the MongoClient when no MongoDatabaseFactory bean is present.
+     *
+     * @param mongoClient the shared MongoDB client
+     * @return a tenant-aware MongoTemplate
+     */
     @Bean
-    @Scope(proxyMode = ScopedProxyMode.TARGET_CLASS)
-    public MongoTemplate mongoTemplate() {
-        String tenantId = TenantContext.getTenantId();
-        if (tenantId == null) {
-            tenantId = defaultTenant;
-        }
-        return new MongoTemplate(new SimpleMongoClientDatabaseFactory(mongoClient, tenantId));
+    public MongoTemplate mongoTemplate(MongoClient mongoClient) {
+        MongoDatabaseFactory tenantAwareFactory = new SimpleMongoClientDatabaseFactory(mongoClient, defaultTenant) {
+            @Override
+            public MongoDatabase getMongoDatabase() throws DataAccessException {
+                String tenantId = TenantContext.getTenantId();
+                return getMongoDatabase(tenantId != null ? tenantId : defaultTenant);
+            }
+        };
+        return new MongoTemplate(tenantAwareFactory);
     }
 }
