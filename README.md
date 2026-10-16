@@ -16,8 +16,8 @@ tenant ID in an HTTP header, and the application routes all MongoDB operations t
 | Component       | Version            |
 |-----------------|--------------------|
 | Java            | 21                 |
-| Spring Boot     | 3.5.0              |
-| MongoDB         | 8.0.10 (Docker)    |
+| Spring Boot     | 4.1.1              |
+| MongoDB         | 9.0.2 (Docker)     |
 | Build tool      | Gradle (wrapper)   |
 | Lombok          | managed by Boot    |
 
@@ -100,7 +100,7 @@ MongoDB on that port yourself:
 docker run -d --name mongodb -p 27017:27017 \
   -e MONGO_INITDB_ROOT_USERNAME=yu71 \
   -e MONGO_INITDB_ROOT_PASSWORD=53cret \
-  mongo:8.0.10-noble
+  mongo:9.0.2-noble
 ```
 
 Then disable the Compose integration and start the app:
@@ -124,6 +124,10 @@ The packaged JAR does not include the development-only Docker Compose support, s
 ```bash
 ./gradlew test
 ```
+
+The integration tests in `TenantIsolationIntegrationTests` start a throwaway MongoDB container with Testcontainers, so
+**Docker must be running**. They check that each tenant reads and writes only its own database, and that requests
+without the `X-TenantID` header fall back to the default tenant.
 
 ## How It Works
 
@@ -213,7 +217,7 @@ curl "http://localhost:8080/api/products/low-stock?stock=20" -H "X-TenantID: ten
 3. Inspect the databases directly:
 
 ```bash
-docker exec -it $(docker ps -qf ancestor=mongo:8.0.10-noble) \
+docker exec -it $(docker ps -qf ancestor=mongo:9.0.2-noble) \
   mongosh -u yu71 -p 53cret --authenticationDatabase admin --eval "show dbs"
 ```
 
