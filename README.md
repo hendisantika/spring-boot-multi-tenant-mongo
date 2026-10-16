@@ -1,103 +1,227 @@
-# MongoDB Multi-Tenant Demo
+# Spring Boot Multi-Tenant MongoDB
 
-This is a Spring Boot application that demonstrates multi-tenancy with MongoDB. The application uses the tenant ID from the request header to determine which MongoDB database to connect to.
+A Spring Boot application that demonstrates **database-per-tenant** multi-tenancy with MongoDB. Each request carries a
+tenant ID in an HTTP header, and the application routes all MongoDB operations to a database named after that tenant.
 
 ## Features
 
-- Multi-tenant architecture with tenant ID in request header
+- Multi-tenant architecture driven by the `X-TenantID` request header
 - Separate MongoDB database for each tenant
-- RESTful API for managing products
+- RESTful CRUD API for products
 - Spring Data MongoDB for data access
+- Docker Compose integration: MongoDB starts automatically with the app
 
-## How It Works
+## Tech Stack
 
-1. The application extracts the tenant ID from the `X-TenantID` header in each request.
-2. If no tenant ID is provided, it uses a default tenant.
-3. The tenant ID is stored in a ThreadLocal variable for the duration of the request.
-4. A custom MongoTemplate is created for each request, using the tenant ID as the database name.
-5. All MongoDB operations use the tenant-specific database.
+| Component       | Version            |
+|-----------------|--------------------|
+| Java            | 21                 |
+| Spring Boot     | 3.5.0              |
+| MongoDB         | 8.0.10 (Docker)    |
+| Build tool      | Gradle (wrapper)   |
+| Lombok          | managed by Boot    |
 
-## API Endpoints
+## Prerequisites
 
-The application provides the following API endpoints:
+- **JDK 21**: check with `java -version`
+- **Docker** with Docker Compose: check with `docker compose version`
+- **curl** (or Postman/HTTPie) to call the API
 
-- `GET /api/products`: Get all products
-- `GET /api/products/{id}`: Get a product by ID
-- `GET /api/products/search?name={name}`: Get products by name
-- `GET /api/products/low-stock?stock={stock}`: Get products with stock less than the given value
-- `POST /api/products`: Create a new product
-- `PUT /api/products/{id}`: Update an existing product
-- `DELETE /api/products/{id}`: Delete a product by ID
-- `GET /api/products/tenant-info`: Get the current tenant ID
+You do not need to install Gradle. The project ships with the Gradle wrapper (`./gradlew`).
 
-## Usage Examples
+## Project Structure
 
-### Get all products for tenant1
-
-```bash
-curl -X GET http://localhost:8080/api/products -H "X-TenantID: tenant1"
+```
+src/main/java/id/my/hendisantika/mongomultitenantdemo5
+├── MongoMultitenantDemo5Application.java   # Spring Boot entry point
+├── config
+│   ├── MultiTenantMongoConfig.java         # Tenant-aware MongoTemplate
+│   ├── TenantContext.java                  # ThreadLocal holder for the tenant ID
+│   ├── TenantInterceptor.java              # Reads X-TenantID header per request
+│   └── WebMvcConfig.java                   # Registers the interceptor
+├── controller
+│   └── ProductController.java              # REST endpoints
+├── model
+│   └── Product.java                        # MongoDB document
+├── repository
+│   └── ProductRepository.java              # Spring Data repository
+└── service
+    └── ProductService.java                 # Business logic
 ```
 
-### Get all products for tenant2
+## Setup
+
+### 1. Clone the repository
 
 ```bash
-curl -X GET http://localhost:8080/api/products -H "X-TenantID: tenant2"
+git clone https://github.com/hendisantika/spring-boot-multi-tenant-mongo.git
+cd spring-boot-multi-tenant-mongo
 ```
 
-### Create a product for tenant1
+### 2. Review the configuration
 
-```bash
-curl -X POST http://localhost:8080/api/products \
-  -H "X-TenantID: tenant1" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Product 1",
-    "description": "Description for Product 1",
-    "price": 10.99,
-    "stock": 100
-  }'
+`src/main/resources/application.properties`:
+
+```properties
+spring.data.mongodb.uri=mongodb://yu71:53cret@localhost:27017/
+spring.data.mongodb.database=default
+spring.data.mongodb.auto-index-creation=true
+
+multitenancy.tenant-header=X-TenantID
+multitenancy.default-tenant=default
 ```
 
-### Create a product for tenant2
+| Property                       | Description                                                   |
+|--------------------------------|---------------------------------------------------------------|
+| `multitenancy.tenant-header`   | HTTP header that carries the tenant ID                        |
+| `multitenancy.default-tenant`  | Tenant (database) used when the header is missing or empty    |
 
-```bash
-curl -X POST http://localhost:8080/api/products \
-  -H "X-TenantID: tenant2" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Product 1",
-    "description": "Description for Product 1",
-    "price": 10.99,
-    "stock": 100
-  }'
-```
-
-### Get the current tenant ID
-
-```bash
-curl -X GET http://localhost:8080/api/products/tenant-info -H "X-TenantID: tenant1"
-```
+The MongoDB credentials are defined in `compose.yaml` and must match the URI above.
 
 ## Running the Application
 
-1. Start MongoDB:
+### Option A: Let Spring Boot start MongoDB (recommended)
 
-```bash
-docker-compose up -d
-```
-
-2. Run the application:
+The project includes `spring-boot-docker-compose`. When you run the app in development mode, Spring Boot runs
+`compose.yaml`, waits for MongoDB to become ready, and connects to it automatically. No manual Docker step is needed.
 
 ```bash
 ./gradlew bootRun
 ```
 
-## Testing Multi-Tenancy
+The API is available at `http://localhost:8080`.
 
-To test the multi-tenant feature, you can:
+### Option B: Run MongoDB yourself
 
-1. Create products for different tenants using the `X-TenantID` header.
-2. Verify that each tenant has its own set of products.
-3. Connect to MongoDB and check that separate databases have been created for each tenant.
+`compose.yaml` publishes MongoDB on a **random** host port, so the fixed `localhost:27017` URI only works if you start
+MongoDB on that port yourself:
 
-For example, you can create a product for tenant1, then create a product with the same name for tenant2, and then verify that each tenant has its own product by getting all products for each tenant.# spring-boot-multi-tenant-mongo
+```bash
+docker run -d --name mongodb -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=yu71 \
+  -e MONGO_INITDB_ROOT_PASSWORD=53cret \
+  mongo:8.0.10-noble
+```
+
+Then disable the Compose integration and start the app:
+
+```bash
+./gradlew bootRun --args='--spring.docker.compose.enabled=false'
+```
+
+### Build an executable JAR
+
+```bash
+./gradlew clean build
+java -jar build/libs/mongo-multitenant-demo5-0.0.1-SNAPSHOT.jar
+```
+
+The packaged JAR does not include the development-only Docker Compose support, so MongoDB must already be running
+(see Option B).
+
+### Run the tests
+
+```bash
+./gradlew test
+```
+
+## How It Works
+
+1. `TenantInterceptor` reads the tenant ID from the `X-TenantID` header on every request.
+2. If the header is missing or empty, it falls back to `multitenancy.default-tenant`.
+3. The tenant ID is stored in `TenantContext`, a `ThreadLocal`, for the duration of the request, and cleared afterwards.
+4. `MultiTenantMongoConfig` builds a `MongoTemplate` whose database name is the current tenant ID.
+5. Repository operations go through that template, so each tenant's data lives in its own database.
+
+## API Reference
+
+Base URL: `http://localhost:8080/api/products`. Send `X-TenantID: <tenant>` with every request.
+
+| Method   | Endpoint                          | Description                               |
+|----------|-----------------------------------|-------------------------------------------|
+| `GET`    | `/api/products`                   | List all products                         |
+| `GET`    | `/api/products/{id}`              | Get a product by ID (404 if not found)    |
+| `GET`    | `/api/products/search?name=`      | Find products by exact name               |
+| `GET`    | `/api/products/low-stock?stock=`  | Find products with stock below a value    |
+| `POST`   | `/api/products`                   | Create a product (201 Created)            |
+| `PUT`    | `/api/products/{id}`              | Update a product (404 if not found)       |
+| `DELETE` | `/api/products/{id}`              | Delete a product (204 No Content)         |
+| `GET`    | `/api/products/tenant-info`       | Show the tenant resolved for the request  |
+
+### Product payload
+
+```json
+{
+  "name": "Product 1",
+  "description": "Description for Product 1",
+  "price": 10.99,
+  "stock": 100
+}
+```
+
+`id` is generated by MongoDB on create.
+
+## Usage Examples
+
+### Check which tenant is resolved
+
+```bash
+curl http://localhost:8080/api/products/tenant-info -H "X-TenantID: tenant1"
+# Current tenant: tenant1
+```
+
+### Create a product
+
+```bash
+curl -X POST http://localhost:8080/api/products \
+  -H "X-TenantID: tenant1" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Laptop", "description": "14-inch laptop", "price": 999.99, "stock": 10}'
+```
+
+### List products
+
+```bash
+curl http://localhost:8080/api/products -H "X-TenantID: tenant1"
+```
+
+### Get, update and delete by ID
+
+```bash
+curl http://localhost:8080/api/products/{id} -H "X-TenantID: tenant1"
+
+curl -X PUT http://localhost:8080/api/products/{id} \
+  -H "X-TenantID: tenant1" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Laptop", "description": "14-inch laptop", "price": 899.99, "stock": 8}'
+
+curl -X DELETE http://localhost:8080/api/products/{id} -H "X-TenantID: tenant1"
+```
+
+### Search and filter
+
+```bash
+curl "http://localhost:8080/api/products/search?name=Laptop" -H "X-TenantID: tenant1"
+curl "http://localhost:8080/api/products/low-stock?stock=20" -H "X-TenantID: tenant1"
+```
+
+## Verifying Tenant Isolation
+
+1. Create a product for `tenant1` and a different product for `tenant2`.
+2. List products with `X-TenantID: tenant1`, then with `X-TenantID: tenant2`. Each list should contain only that
+   tenant's products.
+3. Inspect the databases directly:
+
+```bash
+docker exec -it $(docker ps -qf ancestor=mongo:8.0.10-noble) \
+  mongosh -u yu71 -p 53cret --authenticationDatabase admin --eval "show dbs"
+```
+
+You should see a `tenant1` database and a `tenant2` database, each with a `products` collection.
+
+## Author
+
+**Hendi Santika**
+
+- Email: hendisantika@gmail.com
+- Telegram: [@hendisantika34](https://t.me/hendisantika34)
