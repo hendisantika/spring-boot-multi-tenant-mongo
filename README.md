@@ -1,6 +1,7 @@
 # Spring Boot Multi-Tenant MongoDB
 
 [![CI](https://github.com/hendisantika/spring-boot-multi-tenant-mongo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hendisantika/spring-boot-multi-tenant-mongo/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A Spring Boot application that demonstrates **database-per-tenant** multi-tenancy with MongoDB. Each request carries a
 tenant ID in an HTTP header, and the application routes all MongoDB operations to a database named after that tenant.
@@ -231,3 +232,7 @@ You should see a `tenant1` database and a `tenant2` database, each with a `produ
 
 - Email: hendisantika@gmail.com
 - Telegram: [@hendisantika34](https://t.me/hendisantika34)
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
